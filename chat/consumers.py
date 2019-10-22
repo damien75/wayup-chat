@@ -2,42 +2,41 @@ import json
 
 from typing import Optional, Dict
 
-from asgiref.sync import async_to_sync
-from channels.generic.websocket import WebsocketConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer
 
 
-class ChatConsumer(WebsocketConsumer):
+class ChatConsumer(AsyncWebsocketConsumer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.room_name: Optional[str] = None
         self.room_group_name: Optional[str] = None
 
-    def connect(self):
+    async def connect(self):
         """
         Join Room Group
         """
         self.room_name = self.scope['url_route']['kwargs']['room_name']
         self.room_group_name = f'chat_{self.room_name}'
 
-        async_to_sync(self.channel_layer.group_add)(
+        await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
 
-        self.accept()
+        await self.accept()
 
-    def disconnect(self, code):
+    async def disconnect(self, code):
         """
         Leave room group
         """
         self._verify_state()
 
-        async_to_sync(self.channel_layer.group_discard)(
+        await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
-    def receive(self, text_data=None, bytes_data=None):
+    async def receive(self, text_data=None, bytes_data=None):
         """
         Receive message from WebSocket and send message to group
         """
@@ -46,7 +45,7 @@ class ChatConsumer(WebsocketConsumer):
         text_data_json = json.loads(text_data)
         message = text_data_json['message']
 
-        async_to_sync(self.channel_layer.group_send)(
+        await self.channel_layer.group_send(
             self.room_group_name,
             {
                 'type': self.chat_message.__name__,
@@ -54,14 +53,14 @@ class ChatConsumer(WebsocketConsumer):
             }
         )
 
-    def chat_message(self, event: Dict[str, str]):
+    async def chat_message(self, event: Dict[str, str]):
         """
         Receive message from Room Group and send it to WebSocket
         """
         self._verify_state()
 
         message = event['message']
-        self.send(text_data=json.dumps({
+        await self.send(text_data=json.dumps({
             'message': message
         }))
 
